@@ -1,4 +1,5 @@
 /test
 tests.py
 /qdrant_storage
+.env
 

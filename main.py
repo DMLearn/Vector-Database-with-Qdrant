@@ -2,9 +2,18 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import PointStruct, VectorParams, Distance, Filter, FieldCondition, MatchValue
 import json
 import uuid
+import os
 from typing import Any, Generator, List
+from openai import OpenAI
+from dotenv import load_dotenv
+
+load_dotenv()
 
 client = QdrantClient(host="localhost", port=6333)
+openai_client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    base_url=os.getenv("OPENAI_API_BASE"),
+)
 
 COLLECTION_NAME = 'arxiv_papers'
 vectors_config = {"size": 1536, "distance": "Cosine"}
@@ -55,44 +64,38 @@ def load_vectors_to_qdrant(file_path, batch_size=500) -> None:
         print(f"Uploaded {total_records} records...")
 
 
-def search_similar_papers(collection_name: str, paper_id: str, top_k: int = 5) -> List[str]:
-    # Query the collection and retrieve the vector associated with the specified paper ID.
-    scroll_filter = Filter(
-        must=[
-            FieldCondition(key="id", match=MatchValue(value=paper_id))
-        ]
-    )
+def get_embedding(text: str, model: str = "text-embedding-ada-002") -> List[float]:
+    # Remove newlines from the query
+    text = text.replace("\n", " ")
+    # Make a call to OpenAI's embedding API
+    response = openai_client.embeddings.create(input=[text], model=model)
+    # Return the embedding as a list of floats
+    return response.data[0].embedding
 
-    response, _ = client.scroll(
-        collection_name=collection_name,
-        scroll_filter=scroll_filter,
-        limit=1,
-        with_vectors=True,
-    )
 
-    # Check if the point with the given paper ID exists in the collection.
-    if not response:
-        raise Exception(f"Point with paper ID {paper_id} not found.")
-
-    # Once you've retrieved the point, extract its embedding.
-    query_vector = response[0].vector
-
-    # Use the client to perform a search in the collection using the query vector.
+def find_similar_papers(query_vector: List[float], top_k: int = 5) -> List[Any]:
+    # Find the top-5 most similar entries with the .query_points() method
     results = client.query_points(
-        collection_name=collection_name,
+        collection_name=COLLECTION_NAME,
         query=query_vector,
         limit=top_k,
         with_payload=True,
-        with_vectors=False,
     ).points
-
-    # After obtaining the search results, extract the paper IDs from the results list.
-    paper_ids = [point.payload["id"] for point in results]
-    return paper_ids
+    return results
 
 
 if __name__ == "__main__":
-    # DATA_PATH = "/Users/elinor/Downloads/ml-arxiv-embeddings.json"
-    # load_vectors_to_qdrant(DATA_PATH)
-    similar_paper_ids = search_similar_papers(COLLECTION_NAME, "1311.5068", 5)
+    # The input query
+    input_query = "the attention mechanism in deep learning"
+    
+    # Generate embedding for the query
+    query_embedding = get_embedding(input_query)
+    
+    # Find 5 most similar results
+    similar_results = find_similar_papers(query_embedding, 5)
+    
+    # Extract the paper IDs and append them to a new list
+    similar_paper_ids = [point.payload["id"] for point in similar_results]
+    
+    # Print the result
     print(similar_paper_ids)
