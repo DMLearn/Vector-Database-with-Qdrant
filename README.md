@@ -55,8 +55,21 @@ The system is exposed via a **FastAPI** web interface.
 
 ### Prerequisites
 - Python 3.10+
-- Qdrant running locally (default port 6333)
+- Docker installed and running
 - OpenAI API Key
+
+### Qdrant Setup (Docker)
+To start the Qdrant vector database using Docker, run the following command:
+
+```bash
+docker run -p 6333:6333 -p 6334:6334 \
+    -v $(pwd)/qdrant_storage:/qdrant/storage:z \
+    qdrant/qdrant
+```
+
+This command will:
+- Map port 6333 (HTTP) and 6334 (gRPC) to your localhost.
+- Mount the local `qdrant_storage` directory to the container for data persistence.
 
 ### Installation
 1. Clone the repository.
