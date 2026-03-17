@@ -1,9 +1,10 @@
 from qdrant_client import QdrantClient
-from qdrant_client.models import PointStruct, VectorParams, Distance, Filter, FieldCondition, MatchValue
+from qdrant_client.models import PointStruct, VectorParams, Distance, Filter, FieldCondition, MatchValue, MatchText
+import re
 import json
 import uuid
 import os
-from typing import Any, Generator, List
+from typing import Any, Generator, List, Optional
 from openai import OpenAI
 from dotenv import load_dotenv
 
@@ -73,11 +74,28 @@ def get_embedding(text: str, model: str = "text-embedding-ada-002") -> List[floa
     return response.data[0].embedding
 
 
-def find_similar_papers(query_vector: List[float], top_k: int = 5) -> List[Any]:
-    # Find the top-5 most similar entries with the .query_points() method
+def extract_author(query: str) -> Optional[str]:
+    # Regex to extract author's name after 'by'
+    match = re.search(r"by\s+([A-Za-z\s\-]+)", query)
+    if match:
+        return match.group(1).strip()
+    return None
+
+
+def find_similar_papers(query_vector: List[float], author_name: Optional[str] = None, top_k: int = 3) -> List[Any]:
+    query_filter = None
+    if author_name:
+        query_filter = Filter(
+            must=[
+                FieldCondition(key="authors", match=MatchText(text=author_name))
+            ]
+        )
+
+    # Find the top-k most similar entries with the .query_points() method
     results = client.query_points(
         collection_name=COLLECTION_NAME,
         query=query_vector,
+        query_filter=query_filter,
         limit=top_k,
         with_payload=True,
     ).points
@@ -86,13 +104,16 @@ def find_similar_papers(query_vector: List[float], top_k: int = 5) -> List[Any]:
 
 if __name__ == "__main__":
     # The input query
-    input_query = "the attention mechanism in deep learning"
+    input_query = "Mentions of point clouds by Tian-Xing Xu"
+    
+    # Extract the author name
+    author = extract_author(input_query)
     
     # Generate embedding for the query
     query_embedding = get_embedding(input_query)
     
-    # Find 5 most similar results
-    similar_results = find_similar_papers(query_embedding, 5)
+    # Find 3 most similar results with author filter if applicable
+    similar_results = find_similar_papers(query_embedding, author, 3)
     
     # Extract the paper IDs and append them to a new list
     similar_paper_ids = [point.payload["id"] for point in similar_results]
