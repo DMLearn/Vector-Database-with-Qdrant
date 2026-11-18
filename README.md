@@ -96,6 +96,15 @@ uvicorn main:app --reload
 The API will be available at `http://localhost:8000`. 
 You can access the interactive API documentation (Swagger UI) at `http://localhost:8000/docs`.
 
+### 🛑 Stopping the Server
+To stop the FastAPI server, you can:
+- **Ctrl+C** in the terminal where the server is running. This will gracefully shut down the application.
+- If the server is running in the background, you can find the process ID and kill it:
+  ```bash
+  ps aux | grep uvicorn
+  kill <PID>
+  ```
+
 ---
 
 ## 🔍 Usage Example
