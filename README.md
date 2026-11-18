@@ -1,6 +1,30 @@
 # ArXiv Vector Search System
 
-This project implements a semantic search engine for ArXiv papers using modern AI and vector database technologies. It allows users to search for research papers using natural language queries and provides metadata filtering (e.g., by author).
+> Built as part of the **AI Engineer Intensive Bootcamp (2026)**, module *Vector Databases*.
+> Part of a series: this project → [LLM-evals](https://github.com/DMLearn/LLM-evals) → [llm-evals-2-preparing-for-prod](https://github.com/DMLearn/llm-evals-2-preparing-for-prod) → [AI-Engineer-Deploy](https://github.com/DMLearn/AI-Engineer-Deploy).
+
+A semantic search engine for ArXiv papers: natural-language queries are embedded with OpenAI, matched against paper embeddings in Qdrant, and optionally filtered by author, exposed as a validated REST API.
+
+---
+
+## What I implemented
+
+- **Streaming ingestion with batch upserts** – papers and pre-computed embeddings are streamed line by line from a JSONL file and written to Qdrant in batches of 500, so large datasets don't have to fit into memory.
+- **Idempotent loading** – point IDs are deterministic UUIDv5 values derived from the ArXiv ID. Re-running the import updates existing points instead of creating duplicates.
+- **Lean payloads** – the embedding is stored only as the vector, not duplicated in the payload.
+- **Hybrid search: semantic + metadata filter** – an author name is extracted from the query (`"... by <author>"`) and applied as a full-text filter on the `authors` field, combined with vector similarity in a single Qdrant query.
+- **Typed REST API** – FastAPI `POST /search` with Pydantic request/response models and auto-generated Swagger docs.
+
+## Known limitations & next steps
+
+- Author extraction is a simple regex on `"by ..."` and can misfire (e.g. *"papers sorted by date"*). An LLM-based query parser or explicit filter fields in the request would be more robust.
+- The ingestion function is not exposed via CLI or API yet; the dataset is not part of the repo.
+- No automated tests and no `docker-compose` for app and database together.
+
+---
+
+<details>
+<summary>Background: vector search, Qdrant and embeddings</summary>
 
 ## 🚀 Key Concepts
 
@@ -40,6 +64,10 @@ The system is exposed via a **FastAPI** web interface.
 
 ---
 
+</details>
+
+---
+
 ## 🛠 Tech Stack
 
 - **Language:** Python 3.x
@@ -75,7 +103,7 @@ This command will:
 1. Clone the repository.
 2. Install dependencies:
    ```bash
-   pip install fastapi uvicorn qdrant-client openai python-dotenv pydantic
+   pip install -r requirements.txt
    ```
 3. Create a `.env` file in the root directory:
    ```env
@@ -95,15 +123,6 @@ uvicorn main:app --reload
 
 The API will be available at `http://localhost:8000`. 
 You can access the interactive API documentation (Swagger UI) at `http://localhost:8000/docs`.
-
-### 🛑 Stopping the Server
-To stop the FastAPI server, you can:
-- **Ctrl+C** in the terminal where the server is running. This will gracefully shut down the application.
-- If the server is running in the background, you can find the process ID and kill it:
-  ```bash
-  ps aux | grep uvicorn
-  kill <PID>
-  ```
 
 ---
 
@@ -142,6 +161,7 @@ curl -X POST "http://localhost:8000/search" \
 
 ## 📂 Project Structure
 
+- `requirements.txt`: Python dependencies.
 - `main.py`: Core application logic (FastAPI endpoints, Qdrant interaction, Embedding generation).
 - `qdrant_storage/`: Local directory for Qdrant data persistence.
 - `.env`: Configuration for API keys and endpoints.
